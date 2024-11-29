@@ -9,6 +9,11 @@ from django_filters.rest_framework import DjangoFilterBackend
 from .models import Task
 from .serializers import TaskSerializer, UserRegisterSerializer, LoginSerializer
 from .filters import TaskFilter
+from django.contrib.auth.hashers import check_password
+from .serializers import ProfileSerializer, UpdateUsernameSerializer, UpdatePasswordSerializer
+from .models import Profile
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.parsers import MultiPartParser, FormParser
 
 
 # Task List View: View tasks belonging to the logged-in user
@@ -81,3 +86,73 @@ class LogoutView(APIView):
     def post(self, request):
         logout(request)
         return Response({"message": "Logged out successfully!"}, status=status.HTTP_200_OK)
+
+class ProfileView(APIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = (MultiPartParser, FormParser)
+
+    def get(self, request):
+        try:
+            profile = Profile.objects.get(user=request.user)
+            profile_photo_url = request.build_absolute_uri(profile.profile_photo.url) if profile.profile_photo else None
+        except Profile.DoesNotExist:
+            profile_photo_url = None
+
+        return Response({
+            'username': request.user.username,
+            'email': request.user.email,
+            'profile_photo': profile_photo_url
+        })
+
+class UpdateProfilePhotoView(APIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = (MultiPartParser, FormParser)
+
+    def post(self, request):
+        if 'profile_photo' not in request.FILES:
+            return Response({'error': 'No image provided'}, status=status.HTTP_400_BAD_REQUEST)
+
+        profile, created = Profile.objects.get_or_create(user=request.user)
+        
+        # Delete old photo if it exists
+        if profile.profile_photo:
+            profile.profile_photo.delete()
+        
+        profile.profile_photo = request.FILES['profile_photo']
+        profile.save()
+
+        return Response({
+            'message': 'Profile photo updated successfully',
+            'profile_photo': request.build_absolute_uri(profile.profile_photo.url)
+        })
+
+class UpdateUsernameView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = UpdateUsernameSerializer(data=request.data)
+        if serializer.is_valid():
+            new_username = serializer.validated_data['username']
+            
+            # Check if username already exists
+            if User.objects.filter(username=new_username).exclude(id=request.user.id).exists():
+                return Response({'error': 'Username already taken'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            request.user.username = new_username
+            request.user.save()
+            return Response({'message': 'Username updated successfully'})
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class UpdatePasswordView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = UpdatePasswordSerializer(data=request.data)
+        if serializer.is_valid():
+            if not check_password(serializer.validated_data['current_password'], request.user.password):
+                return Response({'error': 'Current password is incorrect'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            request.user.set_password(serializer.validated_data['new_password'])
+            request.user.save()
+            return Response({'message': 'Password updated successfully'})
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

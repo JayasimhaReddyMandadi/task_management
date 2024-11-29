@@ -3,7 +3,9 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
 from django.contrib.auth import authenticate
-from .models import Task
+from .models import Task, Profile
+
+
 
 class TaskSerializer(serializers.ModelSerializer):
     class Meta:
@@ -14,6 +16,7 @@ class TaskSerializer(serializers.ModelSerializer):
         
 # Serializer for user registration
 class UserRegisterSerializer(serializers.ModelSerializer):
+    
     class Meta:
         model = User
         fields = ['username', 'password', 'email']
@@ -39,3 +42,15 @@ class LoginSerializer(serializers.Serializer):
         if user is None:
             raise serializers.ValidationError('Invalid username or password')
         return user
+    
+class ProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Profile
+        fields = ['profile_photo']
+
+class UpdateUsernameSerializer(serializers.Serializer):
+    username = serializers.CharField(required=True)
+
+class UpdatePasswordSerializer(serializers.Serializer):
+    current_password = serializers.CharField(required=True)
+    new_password = serializers.CharField(required=True)
