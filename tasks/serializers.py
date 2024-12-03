@@ -54,3 +54,16 @@ class UpdateUsernameSerializer(serializers.Serializer):
 class UpdatePasswordSerializer(serializers.Serializer):
     current_password = serializers.CharField(required=True)
     new_password = serializers.CharField(required=True)
+
+# Admin Login Serializer
+class AdminLoginSerializer(serializers.Serializer):
+    username = serializers.CharField()
+    password = serializers.CharField()
+
+    def validate(self, data):
+        user = authenticate(username=data['username'], password=data['password'])
+        if user is None:
+            raise serializers.ValidationError('Invalid credentials')
+        if not user.is_staff and not user.is_superuser:
+            raise serializers.ValidationError('User is not an admin')
+        return user

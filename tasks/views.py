@@ -10,7 +10,7 @@ from .models import Task
 from .serializers import TaskSerializer, UserRegisterSerializer, LoginSerializer
 from .filters import TaskFilter
 from django.contrib.auth.hashers import check_password
-from .serializers import ProfileSerializer, UpdateUsernameSerializer, UpdatePasswordSerializer
+from .serializers import ProfileSerializer, UpdateUsernameSerializer, UpdatePasswordSerializer, AdminLoginSerializer
 from .models import Profile
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.parsers import MultiPartParser, FormParser
@@ -156,3 +156,105 @@ class UpdatePasswordView(APIView):
             request.user.save()
             return Response({'message': 'Password updated successfully'})
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+class AdminLoginView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = AdminLoginSerializer(data=request.data)
+        if serializer.is_valid():
+            user = serializer.validated_data
+            login(request, user)
+            refresh = RefreshToken.for_user(user)
+            
+            return Response({
+                'status': 'success',
+                'message': 'Admin logged in successfully',
+                'data': {
+                    'refresh': str(refresh),
+                    'access': str(refresh.access_token),
+                    'username': user.username,
+                    'email':user.email,
+                    'is_admin': user.is_staff or user.is_superuser
+                }
+            }, status=status.HTTP_200_OK)
+        
+        return Response({
+            'status': 'error',
+            'message': 'Invalid credentials',
+            'errors': serializer.errors
+        }, status=status.HTTP_401_UNAUTHORIZED)
+    
+class SuperuserDashboardView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        # Get regular users (excluding admins) with their tasks
+        regular_users = User.objects.filter(is_superuser=False)
+        users_data = []
+        for user in regular_users:
+            user_tasks = Task.objects.filter(user=user)
+            tasks_data = [
+                {
+                    'id': task.id,
+                    'title': task.title,
+                    'description': task.description,
+                    'status': task.status,
+                    'deadline': task.deadline,
+                    'created_at': task.created_at
+                } for task in user_tasks
+            ]
+            
+            users_data.append({
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'tasks': tasks_data
+            })
+
+        # Get admin users
+        admin_users = User.objects.filter(is_superuser=True)
+        admin_data = [
+            {
+                'id': admin.id,
+                'username': admin.username,
+                'email': admin.email
+            } for admin in admin_users
+        ]
+
+        # Get all tasks
+        all_tasks = Task.objects.all()
+        tasks_list = [
+            {
+                'id': task.id,
+                'title': task.title,
+                'description': task.description,
+                'priority':task.priority,
+                'status': task.status,
+                'deadline': task.deadline,
+                'created_at': task.created_at,
+                'user': task.user.username
+            } for task in all_tasks
+        ]
+
+        return Response({
+            'status': 'success',
+            'data': {
+                'user': {
+                    'id': request.user.id,
+                    'username': request.user.username,
+                    'email': request.user.email,
+                    'is_superuser': request.user.is_superuser,
+                    'is_staff': request.user.is_staff,
+                },
+                'stats': {
+                    'total_users': regular_users.count(),  # Only count regular users
+                    'total_tasks': Task.objects.count(),
+                    'total_admins': admin_users.count(),
+                    'active_users': regular_users.filter(is_active=True).count(),
+                },
+                'users': users_data,  # Regular users with their tasks
+                'admin_users': admin_data,  # List of admin users
+                'all_tasks': tasks_list  # All tasks in the system
+            }
+        }, status=status.HTTP_200_OK)

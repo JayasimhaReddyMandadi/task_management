@@ -6,7 +6,7 @@ from django.urls import path
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from .views import RegisterView, LoginView, LogoutView
 from .views import TaskCreateView, TaskListView, TaskUpdateView, TaskDeleteView
-from .views import ProfileView, UpdateProfilePhotoView, UpdateUsernameView, UpdatePasswordView
+from .views import ProfileView, UpdateProfilePhotoView, UpdateUsernameView, UpdatePasswordView, AdminLoginView, SuperuserDashboardView
 
 
 urlpatterns = [
@@ -38,4 +38,8 @@ urlpatterns = [
     path('profile/update-photo/', UpdateProfilePhotoView.as_view(), name='update-profile-photo'),
     path('profile/update-username/', UpdateUsernameView.as_view(), name='update-username'),
     path('profile/update-password/', UpdatePasswordView.as_view(), name='update-password'),
+
+    #Admin Login
+    path('admin/login/', AdminLoginView.as_view(), name='admin-login'),
+    path('admin/dashboard/',SuperuserDashboardView.as_view(),name='admin-dashboard')
 ]
