@@ -156,7 +156,7 @@ class UpdatePasswordView(APIView):
             request.user.save()
             return Response({'message': 'Password updated successfully'})
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        
+ # This is for admin login       
 class AdminLoginView(APIView):
     permission_classes = [AllowAny]
 
